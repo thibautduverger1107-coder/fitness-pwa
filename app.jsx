@@ -3,7 +3,7 @@ import ReactDOM from "react-dom/client";
 import {
   Home, Target, Scale, UtensilsCrossed, Dumbbell, History as HistoryIcon,
   Heart, Trash2, ChevronLeft, ChevronRight, Flag, Plus, X, Check,
-  LogOut, Lock, User as UserIcon, MessageCircle, Send, Sparkles, Music2, Flame, Footprints
+  LogOut, Lock, User as UserIcon, MessageCircle, Send, Sparkles, Music2, Flame, Footprints, Menu
 } from "lucide-react";
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine
@@ -619,7 +619,7 @@ const TABS = [
 function SideNav({ tab, setTab, prenom, onLogout }) {
   return (
     <nav className="hidden md:flex flex-col w-56 shrink-0 p-4 gap-1 border-r" style={{ borderColor: "var(--border)" }}>
-      <div className="fit-display font-bold text-lg mb-2 px-2" style={{ color: "var(--moss-dark)" }}>PROGRAMME</div>
+      <div className="fit-display font-bold text-lg mb-2 px-2" style={{ color: "var(--moss-dark)" }}>DAY ONE</div>
       <div className="text-xs px-2 mb-4" style={{ color: "var(--muted)" }}>{prenom}</div>
       {TABS.map((t) => (
         <button key={t.key} onClick={() => setTab(t.key)}
@@ -636,19 +636,50 @@ function SideNav({ tab, setTab, prenom, onLogout }) {
   );
 }
 
-function BottomNav({ tab, setTab }) {
+function MobileNav({ tab, setTab, prenom, onLogout }) {
+  const [open, setOpen] = useState(false);
+  const current = TABS.find((t) => t.key === tab);
+
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 flex justify-between px-1 py-1.5 border-t z-20 overflow-x-auto"
-         style={{ background: "var(--card)", borderColor: "var(--border)" }}>
-      {TABS.map((t) => (
-        <button key={t.key} onClick={() => setTab(t.key)}
-          className="flex flex-col items-center gap-0.5 flex-1 py-1.5 rounded-lg text-[10px] font-medium"
-          style={{ color: tab === t.key ? TAB_COLOR[t.key] : "var(--muted)" }}>
-          <t.icon size={17} />
-          {t.label.split(" ")[0]}
+    <>
+      <header className="md:hidden fixed top-0 left-0 right-0 flex items-center gap-3 px-3 py-3 border-b z-30"
+              style={{ background: "var(--card)", borderColor: "var(--border)" }}>
+        <button onClick={() => setOpen(true)} aria-label="Ouvrir le menu" className="p-1.5 rounded-lg" style={{ color: "var(--ink)" }}>
+          <Menu size={22} />
         </button>
-      ))}
-    </nav>
+        <div className="flex items-center gap-2 text-sm font-medium" style={{ color: TAB_COLOR[tab] }}>
+          {current && <current.icon size={17} />}
+          {current ? current.label : ""}
+        </div>
+      </header>
+
+      {open && (
+        <div className="md:hidden fixed inset-0 z-40 flex">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setOpen(false)} />
+          <div className="relative w-72 max-w-[85%] h-full overflow-y-auto p-4 flex flex-col gap-1"
+               style={{ background: "var(--card)" }}>
+            <div className="flex items-center justify-between mb-4 px-2">
+              <div className="fit-display font-bold text-lg" style={{ color: "var(--moss-dark)" }}>DAY ONE</div>
+              <button onClick={() => setOpen(false)} aria-label="Fermer le menu" className="p-1" style={{ color: "var(--muted)" }}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className="text-xs px-2 mb-3" style={{ color: "var(--muted)" }}>{prenom}</div>
+            {TABS.map((t) => (
+              <button key={t.key} onClick={() => { setTab(t.key); setOpen(false); }}
+                className="fit-tab flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-left"
+                style={tab === t.key ? { background: TAB_COLOR[t.key], color: "white" } : { color: "var(--ink)" }}>
+                <t.icon size={17} />
+                {t.label}
+              </button>
+            ))}
+            <button onClick={() => { setOpen(false); onLogout(); }} className="flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium mt-auto" style={{ color: "var(--rust)" }}>
+              <LogOut size={17} /> Déconnexion
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -1855,7 +1886,7 @@ function AuthScreen({ onLogin, onSignup }) {
       <GlobalStyle />
       <div className="fit-card p-6 w-full max-w-sm space-y-4">
         <div className="text-center">
-          <div className="fit-display font-bold text-xl" style={{ color: "var(--moss-dark)" }}>PROGRAMME</div>
+          <div className="fit-display font-bold text-xl" style={{ color: "var(--moss-dark)" }}>DAY ONE</div>
           <p className="text-sm mt-1" style={{ color: "var(--muted)" }}>{mode === "login" ? "Connectez-vous" : "Créez votre compte"}</p>
         </div>
         <div>
@@ -1924,7 +1955,8 @@ function Dashboard({ prenom, profile, setProfile, onLogout, ...data }) {
     <div className="fit-root flex min-h-screen">
       <GlobalStyle />
       <SideNav tab={tab} setTab={setTab} prenom={prenom} onLogout={onLogout} />
-      <main className="flex-1 p-4 sm:p-6 pb-20 md:pb-6 max-w-3xl">
+      <MobileNav tab={tab} setTab={setTab} prenom={prenom} onLogout={onLogout} />
+      <main className="flex-1 p-4 sm:p-6 pt-16 md:pt-6 max-w-3xl">
         {tab === "info" && <InfoTab prenom={prenom} profile={profile} metabolism={metabolism} weightLog={data.weightLog} sessionLibrary={data.sessionLibrary} setTab={setTab} />}
         {tab === "objectifs" && <ObjectifsTab profile={profile} setProfile={setProfile} metabolism={metabolism} supplements={data.supplements} setSupplements={data.setSupplements} />}
         {tab === "pesee" && <PeseeTab weightLog={data.weightLog} setWeightLog={data.setWeightLog} profile={profile} />}
@@ -1936,7 +1968,6 @@ function Dashboard({ prenom, profile, setProfile, onLogout, ...data }) {
         {tab === "historique" && <HistoriqueTab history={data.history} setHistory={data.setHistory} />}
         {tab === "aide" && <AideTab profile={profile} metabolism={metabolism} />}
       </main>
-      <BottomNav tab={tab} setTab={setTab} />
     </div>
   );
 }
