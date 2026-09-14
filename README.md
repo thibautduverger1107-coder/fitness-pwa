@@ -1,4 +1,4 @@
-# Fitness (PWA)
+# Day One (PWA)
 
 Application personnelle de suivi fitness (nutrition, entraînement, pesée, footing), installable sur mobile et desktop.
 
