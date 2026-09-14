@@ -1,6 +1,6 @@
 {
-  "name": "Fitness",
-  "short_name": "Fitness",
+  "name": "Day One",
+  "short_name": "Day One",
   "description": "Suivi personnel : nutrition, entraînement, pesée, footing.",
   "start_url": "./index.html",
   "scope": "./",
