@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import ReactDOM from "react-dom/client";
+import { createClient } from "@supabase/supabase-js";
 import {
   Home, Target, Scale, UtensilsCrossed, Dumbbell, History as HistoryIcon,
   Heart, Trash2, ChevronLeft, ChevronRight, Flag, Plus, X, Check,
@@ -559,20 +560,18 @@ function parseRestToSeconds(str) {
 }
 function fmtSecs(s) { const mm = Math.floor(s / 60), ss = s % 60; return `${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`; }
 
-/* Stockage local du navigateur (remplace window.storage de Claude).
-   Les données restent sur cet appareil, dans ce navigateur. */
-async function loadKey(key, fallback, shared) {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw !== null ? JSON.parse(raw) : fallback;
-  } catch (e) { return fallback; }
+/* Connexion Supabase (compte + données synchronisées entre appareils).
+   Remplace les identifiants ci-dessous par ceux de ton propre projet Supabase. */
+const SUPABASE_URL = "https://reevzuovmsekeflwoqti.supabase.co/rest/v1/";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlZXZ6dW92bXNla2VmbHdvcXRpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk0Nzg1NTYsImV4cCI6MjEwNTA1NDU1Nn0.RCXXR812nv45cO8e0cxWEUgnIWsyGiIliq5vlVJ_bew";
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/* Un prénom est converti en une fausse adresse e-mail car Supabase Auth exige un e-mail. */
+function emailFromPrenom(prenom) {
+  const slug = prenom.trim().toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
+  return `${slug}@dayone.local`;
 }
-async function saveKey(key, value, shared) {
-  try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* silencieux */ }
-}
-async function deleteKey(key, shared) {
-  try { localStorage.removeItem(key); } catch (e) { /* silencieux */ }
-}
+
 
 /* ============================== STYLE GLOBAL ============================== */
 
@@ -1977,6 +1976,7 @@ function Dashboard({ prenom, profile, setProfile, onLogout, ...data }) {
 export default function Root() {
   const [authChecked, setAuthChecked] = useState(false);
   const [username, setUsername] = useState(null);
+  const [userId, setUserId] = useState(null);
   const [dataLoaded, setDataLoaded] = useState(false);
   const [profile, setProfile] = useState(null);
   const [weightLog, setWeightLog] = useState([]);
@@ -1991,74 +1991,82 @@ export default function Root() {
   const [coefficients, setCoefficients] = useState({});
   const [footingLog, setFootingLog] = useState([]);
 
+  // Vérifie si une session Supabase existe déjà sur cet appareil (persistée automatiquement).
   useEffect(() => {
     (async () => {
-      const session = await loadKey("fitness-session", null, false);
-      if (session && session.username) setUsername(session.username);
+      const { data } = await supabase.auth.getSession();
+      const user = data?.session?.user;
+      if (user) {
+        setUserId(user.id);
+        const { data: row } = await supabase.from("user_data").select("prenom").eq("id", user.id).maybeSingle();
+        if (row) setUsername(row.prenom);
+      }
       setAuthChecked(true);
     })();
   }, []);
 
+  // Charge les données de l'utilisateur depuis Supabase une fois connecté.
   useEffect(() => {
-    if (!username) return;
+    if (!userId) return;
     (async () => {
       setDataLoaded(false);
-      const [p, w, fav, n, pl, h, cr, sl, sup, dl, co, fl] = await Promise.all([
-        loadKey(`u_${username}_profile`, null, true),
-        loadKey(`u_${username}_weightlog`, [], true),
-        loadKey(`u_${username}_favorites`, {}, true),
-        loadKey(`u_${username}_notes`, {}, true),
-        loadKey(`u_${username}_planning`, {}, true),
-        loadKey(`u_${username}_history`, [], true),
-        loadKey(`u_${username}_customrecipes`, [], true),
-        loadKey(`u_${username}_sessions`, defaultSessionLibrary(), true),
-        loadKey(`u_${username}_supplements`, defaultSupplements(), true),
-        loadKey(`u_${username}_dailylog`, [], true),
-        loadKey(`u_${username}_coefficients`, {}, true),
-        loadKey(`u_${username}_footing`, [], true),
-      ]);
-      setProfile(normalizeProfile(p)); setWeightLog(w); setFavorites(fav); setNotes(n);
-      setPlanning(pl); setHistory(h); setCustomRecipes(cr); setSessionLibrary({ ...defaultSessionLibrary(), ...sl }); setSupplements(sup); setDailyLog(dl); setCoefficients(co); setFootingLog(fl);
+      const { data: row } = await supabase.from("user_data").select("payload").eq("id", userId).maybeSingle();
+      const p = row?.payload || {};
+      setProfile(normalizeProfile(p.profile ?? null));
+      setWeightLog(p.weightLog ?? []);
+      setFavorites(p.favorites ?? {});
+      setNotes(p.notes ?? {});
+      setPlanning(p.planning ?? {});
+      setHistory(p.history ?? []);
+      setCustomRecipes(p.customRecipes ?? []);
+      setSessionLibrary({ ...defaultSessionLibrary(), ...(p.sessionLibrary ?? {}) });
+      setSupplements(p.supplements ?? defaultSupplements());
+      setDailyLog(p.dailyLog ?? []);
+      setCoefficients(p.coefficients ?? {});
+      setFootingLog(p.footingLog ?? []);
       setDataLoaded(true);
     })();
-  }, [username]);
+  }, [userId]);
 
-  useEffect(() => { if (dataLoaded && username && profile) saveKey(`u_${username}_profile`, profile, true); }, [profile, dataLoaded, username]);
-  useEffect(() => { if (dataLoaded && username) saveKey(`u_${username}_weightlog`, weightLog, true); }, [weightLog, dataLoaded, username]);
-  useEffect(() => { if (dataLoaded && username) saveKey(`u_${username}_favorites`, favorites, true); }, [favorites, dataLoaded, username]);
-  useEffect(() => { if (dataLoaded && username) saveKey(`u_${username}_notes`, notes, true); }, [notes, dataLoaded, username]);
-  useEffect(() => { if (dataLoaded && username) saveKey(`u_${username}_planning`, planning, true); }, [planning, dataLoaded, username]);
-  useEffect(() => { if (dataLoaded && username) saveKey(`u_${username}_history`, history, true); }, [history, dataLoaded, username]);
-  useEffect(() => { if (dataLoaded && username) saveKey(`u_${username}_customrecipes`, customRecipes, true); }, [customRecipes, dataLoaded, username]);
-  useEffect(() => { if (dataLoaded && username) saveKey(`u_${username}_sessions`, sessionLibrary, true); }, [sessionLibrary, dataLoaded, username]);
-  useEffect(() => { if (dataLoaded && username) saveKey(`u_${username}_supplements`, supplements, true); }, [supplements, dataLoaded, username]);
-  useEffect(() => { if (dataLoaded && username) saveKey(`u_${username}_dailylog`, dailyLog, true); }, [dailyLog, dataLoaded, username]);
-  useEffect(() => { if (dataLoaded && username) saveKey(`u_${username}_coefficients`, coefficients, true); }, [coefficients, dataLoaded, username]);
-  useEffect(() => { if (dataLoaded && username) saveKey(`u_${username}_footing`, footingLog, true); }, [footingLog, dataLoaded, username]);
+  // Réunit tout en un seul objet et l'enregistre sur Supabase (avec un léger délai pour grouper les changements rapprochés).
+  const payload = useMemo(() => ({
+    profile, weightLog, favorites, notes, planning, history, customRecipes,
+    sessionLibrary, supplements, dailyLog, coefficients, footingLog,
+  }), [profile, weightLog, favorites, notes, planning, history, customRecipes, sessionLibrary, supplements, dailyLog, coefficients, footingLog]);
+
+  useEffect(() => {
+    if (!dataLoaded || !userId) return;
+    const t = setTimeout(() => {
+      supabase.from("user_data").update({ payload, updated_at: new Date().toISOString() }).eq("id", userId).then(() => {});
+    }, 800);
+    return () => clearTimeout(t);
+  }, [payload, dataLoaded, userId]);
 
   const addHistory = useCallback((entry) => setHistory((h) => [...h, entry]), []);
 
   const login = async (name, password) => {
-    const users = await loadKey("fitness-app-users", {}, true);
-    const user = users[name];
-    if (!user) return { error: "Aucun compte avec ce prénom. Créez-en un." };
-    if (user.password !== password) return { error: "Mot de passe incorrect." };
-    await saveKey("fitness-session", { username: name }, false);
-    setUsername(name);
+    const { data, error } = await supabase.auth.signInWithPassword({ email: emailFromPrenom(name), password });
+    if (error) return { error: "Prénom ou mot de passe incorrect." };
+    setUserId(data.user.id);
+    setUsername(name.trim());
     return {};
   };
+
   const signup = async (name, password) => {
-    const users = await loadKey("fitness-app-users", {}, true);
-    if (users[name]) return { error: "Ce prénom est déjà utilisé. Connectez-vous ou choisissez-en un autre." };
-    users[name] = { password };
-    await saveKey("fitness-app-users", users, true);
-    await saveKey("fitness-session", { username: name }, false);
-    setUsername(name);
+    const { data: existing } = await supabase.from("user_data").select("prenom").ilike("prenom", name.trim()).maybeSingle();
+    if (existing) return { error: "Ce prénom est déjà utilisé. Connectez-vous ou choisissez-en un autre." };
+    const { data, error } = await supabase.auth.signUp({ email: emailFromPrenom(name), password });
+    if (error) return { error: error.message === "Password should be at least 6 characters." ? "Le mot de passe doit contenir au moins 6 caractères." : "Impossible de créer le compte." };
+    const { error: insertError } = await supabase.from("user_data").insert({ id: data.user.id, prenom: name.trim(), payload: {} });
+    if (insertError) return { error: "Impossible de créer le compte." };
+    setUserId(data.user.id);
+    setUsername(name.trim());
     return {};
   };
+
   const logout = async () => {
-    await deleteKey("fitness-session", false);
-    setUsername(null); setDataLoaded(false); setProfile(null);
+    await supabase.auth.signOut();
+    setUserId(null); setUsername(null); setDataLoaded(false); setProfile(null);
     setWeightLog([]); setFavorites({}); setNotes({}); setPlanning({}); setHistory([]);
     setCustomRecipes([]); setSessionLibrary(defaultSessionLibrary()); setSupplements(defaultSupplements()); setDailyLog([]); setCoefficients({}); setFootingLog([]);
   };
