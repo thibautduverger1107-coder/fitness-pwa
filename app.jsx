@@ -562,7 +562,7 @@ function fmtSecs(s) { const mm = Math.floor(s / 60), ss = s % 60; return `${Stri
 
 /* Connexion Supabase (compte + données synchronisées entre appareils).
    Remplace les identifiants ci-dessous par ceux de ton propre projet Supabase. */
-const SUPABASE_URL = "https://reevzuovmsekeflwoqti.supabase.co/rest/v1/";
+const SUPABASE_URL = "https://reevzuovmsekeflwoqti.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJlZXZ6dW92bXNla2VmbHdvcXRpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk0Nzg1NTYsImV4cCI6MjEwNTA1NDU1Nn0.RCXXR812nv45cO8e0cxWEUgnIWsyGiIliq5vlVJ_bew";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
