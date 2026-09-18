@@ -1,4 +1,4 @@
-const CACHE_NAME = "fitness-cache-v3";
+const CACHE_NAME = "fitness-cache-v4";
 const ASSETS = [
   "./",
   "./index.html",
@@ -25,22 +25,20 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
-  // Réseau d'abord pour les CDN externes (React, Babel, polices), cache local sinon.
+  // Réseau d'abord pour les fichiers locaux : la dernière version en ligne est toujours utilisée
+  // quand la connexion est disponible ; le cache ne sert que si le réseau échoue (mode hors ligne).
   const url = event.request.url;
   const isLocal = url.startsWith(self.location.origin);
 
-  if (!isLocal) return; // laisse le navigateur gérer les CDN normalement
+  if (!isLocal) return; // laisse le navigateur gérer les CDN normalement (React, Babel, Supabase...)
 
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(event.request)
-        .then((response) => {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-          return response;
-        })
-        .catch(() => cached);
-    })
+    fetch(event.request)
+      .then((response) => {
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        return response;
+      })
+      .catch(() => caches.match(event.request))
   );
 });
